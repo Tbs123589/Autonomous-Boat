@@ -1,0 +1,25 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "STM32 Debug (DAP)",
+            "type": "cortex-debug",
+            "request": "launch",
+            "servertype": "openocd",
+            "serverpath": "D:/all soft/OpenOCD/OpenOCD-20260302-0.12.0/bin/openocd.exe",
+            "cwd": "${workspaceFolder}",
+            "executable": "${workspaceFolder}/build/Debug/${workspaceFolderBasename}.elf",
+            "configFiles": [
+                "${workspaceFolder}/openocd.cfg"
+            ],
+            "runToEntryPoint": "main",
+            "device": "STM32H743IITx",
+            "svdFile": "${workspaceFolder}/STM32H7.svd",
+            "preLaunchTask": "Build",
+            
+            
+            // "showDevDebugOutput": "raw"  // 调试时可查看详细输出
+
+        }
+    ]
+}
