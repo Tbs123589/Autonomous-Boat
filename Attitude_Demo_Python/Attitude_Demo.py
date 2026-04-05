@@ -136,19 +136,19 @@ def main():
 
                     # 基础姿态计算
                     acc_roll = math.degrees(math.atan2(ay, az))
-                    acc_pitch = math.degrees(math.atan2(-ax, math.sqrt(ay*ay + az*az)))
+                    acc_pitch = -math.degrees(math.atan2(-ax, math.sqrt(ay*ay + az*az)))
                     
                     comp_roll = ALPHA * (comp_roll + (gx - gx_bias) * dt) + (1 - ALPHA) * acc_roll
-                    comp_pitch = ALPHA * (comp_pitch + (gy - gy_bias) * dt) + (1 - ALPHA) * acc_pitch
+                    comp_pitch = ALPHA * (comp_pitch - (gy - gy_bias) * dt) + (1 - ALPHA) * acc_pitch
 
                     # 磁力计计算与融合
-                    mag_yaw = calculate_tilt_compensated_yaw(comp_roll, comp_pitch, mx, my, mz)
+                    mag_yaw = calculate_tilt_compensated_yaw(comp_roll, -comp_pitch, mx, my, mz)
                     
                     yaw_error = mag_yaw - comp_yaw
                     if yaw_error > 180: yaw_error -= 360
                     if yaw_error < -180: yaw_error += 360
                     
-                    YAW_ALPHA = 0.99
+                    YAW_ALPHA = 0.95
                     gz_fixed = gz - gz_bias
                     # 减号：处理顺时针 gz 为负的极性
                     comp_yaw = (comp_yaw + gz_fixed * dt) + (1 - YAW_ALPHA) * yaw_error 
