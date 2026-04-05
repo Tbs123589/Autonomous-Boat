@@ -24,7 +24,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include <stdio.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -34,6 +34,25 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+
+// 寄存器地址定义
+#define BMI088_ACC_CHIP_ID_ADDR    0x00
+#define BMI088_ACC_PWR_CONF_ADDR   0x7C
+#define BMI088_ACC_PWR_CTRL_ADDR   0x7D
+#define BMI088_ACC_DATA_ADDR       0x12
+
+#define BMI088_GYRO_CHIP_ID_ADDR   0x00
+#define BMI088_GYRO_DATA_ADDR      0x02
+
+// 片选控制宏
+/* 修改后的片选宏定义 */
+// PH13 -> 加速度计片选 (CS1)
+#define ACC_CS_L()  HAL_GPIO_WritePin(GPIOH, GPIO_PIN_13, GPIO_PIN_RESET)
+#define ACC_CS_H()  HAL_GPIO_WritePin(GPIOH, GPIO_PIN_13, GPIO_PIN_SET)
+
+// PH14 -> 陀螺仪片选 (CS2)
+#define GYRO_CS_L() HAL_GPIO_WritePin(GPIOH, GPIO_PIN_14, GPIO_PIN_RESET)
+#define GYRO_CS_H() HAL_GPIO_WritePin(GPIOH, GPIO_PIN_14, GPIO_PIN_SET)
 
 /* USER CODE END PD */
 
@@ -58,6 +77,56 @@ static void MPU_Config(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 
+
+
+/* 适配 H7 的串口重定向 */
+int __io_putchar(int ch) {
+    HAL_UART_Transmit(&huart1, (uint8_t *)&ch, 1, HAL_MAX_DELAY);
+    return ch;
+}
+
+
+
+// 加速度计读取（含 Dummy Byte 处理）
+void BMI088_ReadAccReg(uint8_t reg, uint8_t *pData, uint16_t len) {
+    uint8_t addr = reg | 0x80; // 读操作最高位置1
+    uint8_t dummy;
+    for(volatile int i=0; i<200; i++); // 短暂延时确保加速度计准备好数据
+    ACC_CS_L();
+    // 增加一个极短的延时（约几百纳秒）
+    for(volatile int i=0; i<200; i++);
+    HAL_SPI_Transmit(&hspi1, &addr, 1, HAL_MAX_DELAY);
+    HAL_SPI_Receive(&hspi1, &dummy, 1, HAL_MAX_DELAY); // 关键：加速度计读数据前必须先收一个废字节
+    HAL_SPI_Receive(&hspi1, pData, len, HAL_MAX_DELAY);
+    ACC_CS_H();
+    for(volatile int i=0; i<500; i++);
+    // 重新开启 Cache 后，必须手动告诉 CPU 内存数据已变，不要用旧缓存
+    SCB_InvalidateDCache_by_Addr((uint32_t *)pData, len);
+
+}
+
+// 陀螺仪读取（不含 Dummy Byte）
+void BMI088_ReadGyroReg(uint8_t reg, uint8_t *pData, uint16_t len) {
+    uint8_t addr = reg | 0x80;
+    for(volatile int i=0; i<100; i++); // 短暂延时确保陀螺仪准备好数据
+    GYRO_CS_L();
+    // 增加一个极短的延时（约几百纳秒）
+    for(volatile int i=0; i<50; i++);
+    HAL_SPI_Transmit(&hspi1, &addr, 1, HAL_MAX_DELAY);
+    HAL_SPI_Receive(&hspi1, pData, len, HAL_MAX_DELAY);
+    GYRO_CS_H();
+    // 重新开启 Cache 后，必须手动告诉 CPU 内存数据已变，不要用旧缓存
+    SCB_InvalidateDCache_by_Addr((uint32_t *)pData, len);
+    
+}
+
+// 通用写寄存器
+void BMI088_WriteReg(GPIO_TypeDef* GPIOx, uint16_t GPIO_Pin, uint8_t reg, uint8_t data) {
+    uint8_t buf[2] = { reg & 0x7F, data }; // 写操作最高位置0
+    HAL_GPIO_WritePin(GPIOx, GPIO_Pin, GPIO_PIN_RESET);
+    HAL_SPI_Transmit(&hspi1, buf, 2, HAL_MAX_DELAY);
+    HAL_GPIO_WritePin(GPIOx, GPIO_Pin, GPIO_PIN_SET);
+}
 /* USER CODE END 0 */
 
 /**
@@ -103,6 +172,45 @@ int main(void)
   MX_SPI1_Init();
   MX_USART1_UART_Init();
   /* USER CODE BEGIN 2 */
+  uint8_t id_acc = 0, id_gyro = 0;
+  
+  //0. BMI088 复位（必须）
+  BMI088_WriteReg(GPIOH, GPIO_PIN_13, 0x7E, 0xB6); // 往 0x7E 写入 0xB6 进行复位
+  HAL_Delay(50); // 复位后必须等待至少 50ms，确保 BMI088 完全重启
+
+  // 1. 读取 ID 验证通信
+  HAL_Delay(50);
+  BMI088_ReadAccReg(BMI088_ACC_CHIP_ID_ADDR, &id_acc, 1);
+  BMI088_ReadGyroReg(BMI088_GYRO_CHIP_ID_ADDR, &id_gyro, 1);
+  printf("BMI088 Acc ID: 0x%02X (Expect 0x1E)\n", id_acc);
+  printf("BMI088 Gyro ID: 0x%02X (Expect 0x0F)\n", id_gyro);
+
+  // 2. 加速度计唤醒序列（必须严格遵守）
+  BMI088_WriteReg(GPIOH, GPIO_PIN_13, BMI088_ACC_PWR_CTRL_ADDR, 0x04); 
+  HAL_Delay(10);
+  BMI088_WriteReg(GPIOH, GPIO_PIN_13, BMI088_ACC_PWR_CONF_ADDR, 0x00);
+  HAL_Delay(50);
+
+  // 3. 【新增】配置采样率和带宽（非常重要）
+  // 写入 0x40 寄存器：设置 ODR 为 100Hz, 带宽为 Normal (0xA)
+  BMI088_WriteReg(GPIOH, GPIO_PIN_13, 0x40, 0xA8); 
+  HAL_Delay(50);
+
+
+  // 1. 设置陀螺仪量程 (寄存器 0x0F)
+  // 写入 0x00 代表 ±2000 °/s, 0x01 代表 ±1000 °/s ...
+  // 船只晃动较慢，建议用 0x02 (±500 °/s) 或 0x03 (±250 °/s) 提高精度
+  BMI088_WriteReg(GPIOH, GPIO_PIN_14, 0x0F, 0x02); 
+
+  // 2. 设置陀螺仪带宽 (寄存器 0x10)
+  // 写入 0x07 代表 ODR 200Hz, Bandwidth 64Hz (比较常用)
+  BMI088_WriteReg(GPIOH, GPIO_PIN_14, 0x10, 0x07);
+
+  uint8_t raw_data[6];
+  int16_t ax, ay, az;
+
+  uint8_t gyro_raw[6];
+  int16_t gx, gy, gz;
 
   /* USER CODE END 2 */
 
@@ -110,6 +218,43 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+    
+    // 读取加速度计 X,Y,Z (共6字节)
+    BMI088_ReadAccReg(BMI088_ACC_DATA_ADDR, raw_data, 6);
+    
+    // 合并字节
+    ax = (int16_t)((raw_data[1] << 8) | raw_data[0]);
+    ay = (int16_t)((raw_data[3] << 8) | raw_data[2]);
+    az = (int16_t)((raw_data[5] << 8) | raw_data[4]);
+      
+    // 读取陀螺仪 X, Y, Z (从 0x02 寄存器开始，共6字节)
+    BMI088_ReadGyroReg(BMI088_GYRO_DATA_ADDR, gyro_raw, 6);
+
+    // 合并字节 (注意：BMI088 寄存器通常是小端模式，低字节在前)
+    gx = (int16_t)((gyro_raw[1] << 8) | gyro_raw[0]);
+    gy = (int16_t)((gyro_raw[3] << 8) | gyro_raw[2]);
+    gz = (int16_t)((gyro_raw[5] << 8) | gyro_raw[4]);
+
+    // --- 2. 转换并放大 1000 倍 ---
+    // 加速度计 (单位: mg, 即 1/1000 g)
+    int32_t ax_mg = (int32_t)(ax / 32768.0f * 6.0f * 1000.0f);
+    int32_t ay_mg = (int32_t)(ay / 32768.0f * 6.0f * 1000.0f);
+    int32_t az_mg = (int32_t)(az / 32768.0f * 6.0f * 1000.0f);
+
+    // 陀螺仪 (单位: 0.001 dps)
+    int32_t gx_mdps = (int32_t)(gx / 32768.0f * 500.0f * 1000.0f);
+    int32_t gy_mdps = (int32_t)(gy / 32768.0f * 500.0f * 1000.0f);
+    int32_t gz_mdps = (int32_t)(gz / 32768.0f * 500.0f * 1000.0f);
+
+    // --- 3. 格式化输出 (使用 %ld) ---
+    // 即使 floating point 支持没开，这行也能正常打印数字
+    printf("DATA:%ld,%ld,%ld,%ld,%ld,%ld\r\n", 
+            ax_mg, ay_mg, az_mg, gx_mdps, gy_mdps, gz_mdps);
+
+    // 3. 采样频率控制
+    // 建议设为 10ms (100Hz)，这是姿态解算的黄金频率
+    HAL_Delay(10);
+
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
