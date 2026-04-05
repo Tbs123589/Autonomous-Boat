@@ -131,9 +131,9 @@ def main():
                     # 对齐逻辑: IMU_X=BMM_Y, IMU_Y=BMM_X, IMU_Z=-BMM_Z
                     # 修正右手系：my 需取反
                     mx =  my_o
-                    my = mx_o 
+                    my =  mx_o 
                     mz = -mz_o
-
+                    
                     # 基础姿态计算
                     acc_roll = math.degrees(math.atan2(ay, az))
                     acc_pitch = -math.degrees(math.atan2(-ax, math.sqrt(ay*ay + az*az)))
@@ -148,7 +148,7 @@ def main():
                     if yaw_error > 180: yaw_error -= 360
                     if yaw_error < -180: yaw_error += 360
                     
-                    YAW_ALPHA = 0.95
+                    YAW_ALPHA = 0.99
                     gz_fixed = gz - gz_bias
                     # 减号：处理顺时针 gz 为负的极性
                     comp_yaw = (comp_yaw + gz_fixed * dt) + (1 - YAW_ALPHA) * yaw_error 
