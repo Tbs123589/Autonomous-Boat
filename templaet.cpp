@@ -4,9 +4,9 @@ class MyNode : public rclcpp::Node
 public:
 MyNode():Node("cpp_test")
 {
-   
+   123456
 }
-private:
+private:123456
 };
 
 int main(int argc,char **argv)
