@@ -38,6 +38,6 @@ int main(void)
         // 4. ͨ��������̨����
         Radio_Send_Data((uint8_t*)&send_frame, sizeof(US_Radio_Frame_t));
 
-        HAL_Delay(100000);  // 10Hz�ϴ�Ƶ�ʣ��ɵ�
+        HAL_Delay(1);  // 10Hz�ϴ�Ƶ�ʣ��ɵ�
     }
 }
