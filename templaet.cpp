@@ -7,6 +7,7 @@ MyNode():Node("cpp_test")
    123456
 }
 private:123456
+lq lq lq lq
 };
 
 int main(int argc,char **argv)
