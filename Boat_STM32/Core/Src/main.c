@@ -73,6 +73,12 @@
 
 /* USER CODE BEGIN PV */
 
+// 使用对齐属性，确保数组地址是 32 的倍数
+// 长度建议也稍微设大一点，覆盖一个 Cache Line (32字节)
+volatile uint8_t raw_data[6] __attribute__((section(".RAM_D1"))); 
+volatile uint8_t gyro_raw[6] __attribute__((section(".RAM_D1")));
+volatile uint8_t mag_raw[8]  __attribute__((section(".RAM_D1")));
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -88,9 +94,14 @@ static void MPU_Config(void);
 
 
 /* 适配 H7 的串口重定向 */
-int __io_putchar(int ch) {
+int fputc(int ch, FILE *f) {
     HAL_UART_Transmit(&huart1, (uint8_t *)&ch, 1, HAL_MAX_DELAY);
     return ch;
+}
+
+// 保留这个以兼容某些库
+int __io_putchar(int ch) {
+    return fputc(ch, NULL);
 }
 
 
@@ -99,32 +110,25 @@ int __io_putchar(int ch) {
 void BMI088_ReadAccReg(uint8_t reg, uint8_t *pData, uint16_t len) {
     uint8_t addr = reg | 0x80; // 读操作最高位置1
     uint8_t dummy;
-    for(volatile int i=0; i<200; i++); // 短暂延时确保加速度计准备好数据
+
     ACC_CS_L();
-    // 增加一个极短的延时（约几百纳秒）
-    for(volatile int i=0; i<200; i++);
     HAL_SPI_Transmit(&hspi1, &addr, 1, HAL_MAX_DELAY);
     HAL_SPI_Receive(&hspi1, &dummy, 1, HAL_MAX_DELAY); // 关键：加速度计读数据前必须先收一个废字节
     HAL_SPI_Receive(&hspi1, pData, len, HAL_MAX_DELAY);
     ACC_CS_H();
-    for(volatile int i=0; i<500; i++);
-    // 重新开启 Cache 后，必须手动告诉 CPU 内存数据已变，不要用旧缓存
-    SCB_InvalidateDCache_by_Addr((uint32_t *)pData, len);
+
 
 }
 
 // 陀螺仪读取（不含 Dummy Byte）
 void BMI088_ReadGyroReg(uint8_t reg, uint8_t *pData, uint16_t len) {
     uint8_t addr = reg | 0x80;
-    for(volatile int i=0; i<100; i++); // 短暂延时确保陀螺仪准备好数据
+
     GYRO_CS_L();
-    // 增加一个极短的延时（约几百纳秒）
-    for(volatile int i=0; i<50; i++);
     HAL_SPI_Transmit(&hspi1, &addr, 1, HAL_MAX_DELAY);
     HAL_SPI_Receive(&hspi1, pData, len, HAL_MAX_DELAY);
     GYRO_CS_H();
-    // 重新开启 Cache 后，必须手动告诉 CPU 内存数据已变，不要用旧缓存
-    SCB_InvalidateDCache_by_Addr((uint32_t *)pData, len);
+
     
 }
 
@@ -259,16 +263,11 @@ int main(void)
   // 写入 0x07 代表 ODR 200Hz, Bandwidth 64Hz (比较常用)
   BMI088_WriteReg(GPIOH, GPIO_PIN_14, 0x10, 0x07);
 
-  uint8_t raw_data[6];
   int16_t ax, ay, az;
-
-  uint8_t gyro_raw[6];
   int16_t gx, gy, gz;
-
 
   BMM150_Init();
 
-  uint8_t mag_raw[8]; // BMM150 数据包含 X,Y,Z 和 RHALL
   int16_t mx, my, mz;
 
   /* USER CODE END 2 */
