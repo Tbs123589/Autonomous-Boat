@@ -2,24 +2,17 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "STM32 Debug (DAP)",
-            "type": "cortex-debug",
-            "request": "launch",
-            "servertype": "openocd",
-            "serverpath": "D:/all soft/OpenOCD/OpenOCD-20260302-0.12.0/bin/openocd.exe",
+            "name": "STM32 Debug (ST-Link)",
             "cwd": "${workspaceFolder}",
-            "executable": "${workspaceFolder}/build/Debug/${workspaceFolderBasename}.elf",
-            "configFiles": [
-                "${workspaceFolder}/openocd.cfg"
-            ],
+            "executable": "./MDK-ARM/Boat_STM32/Boat_STM32.axf",  // 这里改成你自己的axf文件路径
+            "request": "launch",
+            "type": "cortex-debug",
             "runToEntryPoint": "main",
-            "device": "STM32H743IITx",
-            "svdFile": "${workspaceFolder}/STM32H7.svd",
-            "preLaunchTask": "Build",
-            
-            
-            // "showDevDebugOutput": "raw"  // 调试时可查看详细输出
-
+            "servertype": "stlink",
+            "device": "STM32H743IIT6",  // 改成你的芯片型号
+            "interface": "swd",
+            "svdFile": "STM32H743IITx.svd", // 可选，不填也能调试
+            //"preLaunchTask": "Build",
         }
     ]
 }
