@@ -33,14 +33,7 @@ boat_stm32\main.o: ../Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_i2c.h
 boat_stm32\main.o: ../Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_i2c_ex.h
 boat_stm32\main.o: ../Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_pwr.h
 boat_stm32\main.o: ../Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_pwr_ex.h
-boat_stm32\main.o: ../Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_spi.h
-boat_stm32\main.o: ../Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_spi_ex.h
 boat_stm32\main.o: ../Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_tim.h
 boat_stm32\main.o: ../Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_tim_ex.h
-boat_stm32\main.o: ../Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_uart.h
-boat_stm32\main.o: ../Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_uart_ex.h
-boat_stm32\main.o: ../Core/Inc/i2c.h
-boat_stm32\main.o: ../Core/Inc/spi.h
-boat_stm32\main.o: ../Core/Inc/usart.h
 boat_stm32\main.o: ../Core/Inc/gpio.h
 boat_stm32\main.o: D:\all soft\Keil\ARM\ARMCC\Bin\..\include\stdio.h
